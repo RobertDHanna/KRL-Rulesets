@@ -1,0 +1,9 @@
+ruleset apis_and_picos.keys {
+  meta {
+    key twilio {
+          "account_sid": "Account Sid Here", 
+          "auth_token" : "Auth Token Here"
+    }
+    provides keys twilio to apis_and_picos.use_twilio
+  }
+}
