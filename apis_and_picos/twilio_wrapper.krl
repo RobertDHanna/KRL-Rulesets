@@ -51,7 +51,6 @@ ruleset apis_and_picos.twilio_wrapper {
     
         // if HTTP status was OK & the response was not null and there were no errors...
         (status == 200 && not is_bad_response) => response_content | error
-        // send_directive("message test sss", {"response": response_content })
     }
   }
 }
