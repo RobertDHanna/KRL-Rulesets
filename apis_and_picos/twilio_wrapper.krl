@@ -16,18 +16,23 @@ ruleset apis_and_picos.twilio_wrapper {
         })
     }
     
-    messages = function(message_id, to, from, pagination_uri) {
+    messages = function(message_id, to, from, page_size, page, page_token) {
         base_url = <<https://#{account_sid}:#{auth_token}@api.twilio.com/2010-04-01/Accounts/#{account_sid}/Messages>>;
         base_url = (message_id == null) => base_url | base_url + "/" + message_id;
         base_url = base_url + ".json";
-        pagination_uri_is_set = pagination_uri != null && pagination_uri != "";
-        base_url = pagination_uri_is_set == false => base_url | <<https://#{account_sid}:#{auth_token}@api.twilio.com#{pagination_uri}>>;
         m_qs = {
           "To": to,
-          "From": from
+          "From": from,
+          "PageSize": page_size,
+          "Page": page,
+          "PageToken": page_token
         };
-        m_qs = (pagination_uri_is_set || (to == null || to == "")) => m_qs.delete(["To"]) | m_qs;
-        m_qs = (pagination_uri_is_set || (from == null || from == "")) => m_qs.delete(["From"]) | m_qs;
+        
+        m_qs = (to == null || to == "") => m_qs.delete(["To"]) | m_qs;
+        m_qs = (from == null || from == "") => m_qs.delete(["From"]) | m_qs;
+        m_qs = (page_size == null || page_size == "") => m_qs.delete(["PageSize"]) | m_qs;
+        m_qs = (page == null || page == "") => m_qs.delete(["Page"]) | m_qs;
+        m_qs = (page_token == null || page_token == "") => m_qs.delete(["PageToken"]) | m_qs;
         
         response = http:get(base_url, qs = m_qs);
         

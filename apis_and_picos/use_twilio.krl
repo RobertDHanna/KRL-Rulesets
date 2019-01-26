@@ -9,12 +9,14 @@ ruleset apis_and_picos.use_twilio {
   }
   
   global {
-    messages = function(message_id, to, from, pagination_uri) {
+    messages = function(message_id, to, from, page_size, page, page_token) {
       twilio:messages(
         message_id,
         to,
         from,
-        pagination_uri
+        page_size,
+        page,
+        page_token
       )
     }
   }
