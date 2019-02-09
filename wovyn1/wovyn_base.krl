@@ -10,7 +10,7 @@ ruleset wovyn_base {
     __testing = { "queries": [ { "name": "__testing" } ],
                   "events": [ { "domain": "post", "type": "test",
                               "attrs": [ "temp", "baro" ] } ] }
-    temperature_threshold = 72.35
+    temperature_threshold = 75.7
     threshold_violation_number = "$NUMBER"
   }
  
@@ -30,11 +30,12 @@ ruleset wovyn_base {
     select when wovyn new_temperature_reading
     pre {
       temperature = event:attrs{["temperature", "temperatureF"]}.klog("temp: ")
+      timestamp = event:attrs{"timestamp"}
     }
     if temperature > temperature_threshold then send_directive("high temp violation", {"temp": temperature})
     fired {
       raise wovyn event "threshold_violation"
-        attributes event:attrs
+        attributes {"temperature": temperature, "timestamp":timestamp}
     }
   }
   
