@@ -89,7 +89,7 @@ class App extends Component {
             </div>
           </div>
         </section>
-        <section className="hero is-small is-danger is-bold">
+        <section className="hero is-small is-danger is-bold theshold-container">
           <div className="hero-body">
             <div className="container">
               <h2 className="subtitle">Threshold Violations</h2>

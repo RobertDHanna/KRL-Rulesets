@@ -6,8 +6,8 @@ ruleset sensor_profile {
   global {
     profile = function() {
       {
-        "name": ent:name.defaultsTo("Default Name"), 
-        "location": ent:location.defaultsTo("Default Location"),
+        "name": ent:name.defaultsTo("Default"), 
+        "location": ent:location.defaultsTo("Default"),
         "number": ent:number.defaultsTo("555-555-5555"),
         "threshold": ent:threshold.defaultsTo(72.9)
       }
@@ -16,8 +16,8 @@ ruleset sensor_profile {
   rule profile_updated {
     select when sensor profile_updated
     pre {
-      defaultName = ent:name.defaultsTo("Default Name")
-      defaultLocation = ent:location.defaultsTo("Default Location")
+      defaultName = ent:name.defaultsTo("Default")
+      defaultLocation = ent:location.defaultsTo("Default")
       defaultNumber = ent:number.defaultsTo("555-555-5555")
       defaultThreshold = ent:threshold.defaultsTo(72.9)
     }

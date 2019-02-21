@@ -11,8 +11,6 @@ ruleset wovyn_base {
     __testing = { "queries": [ { "name": "__testing" } ],
                   "events": [ { "domain": "post", "type": "test",
                               "attrs": [ "temp", "baro" ] } ] }
-    temperature_threshold = 75.7
-    threshold_violation_number = "$NUMBER"
   }
  
   rule process_heartbeat {

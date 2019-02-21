@@ -40,3 +40,14 @@
 .profile-button {
   float: right;
 }
+
+html,
+body,
+#root,
+.App {
+  height: 100vh;
+}
+
+.theshold-container {
+  height: 100%;
+}
