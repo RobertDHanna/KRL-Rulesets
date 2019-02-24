@@ -45,9 +45,104 @@ const deletePicoTest = async picoToDelete => {
   );
 };
 
+const testNewTemperatureEvents = async () => {
+  const testTempInRange = {
+    temperature: { temperatureF: 70 },
+    timestamp: "Test Time Stamp"
+  };
+  const testTempThresholdViolation = {
+    temperature: { temperatureF: 100.9 },
+    timestamp: "Test Time Stamp"
+  };
+  let result = await got(`${queryBaseURL}sensorsMap`);
+  const jsonResult = JSON.parse(result.body);
+  await Promise.all(
+    Object.values(jsonResult).map(async eci =>
+      got(
+        `http://localhost:8080/sky/event/${eci}/5/wovyn/new_temperature_reading`,
+        { json: true, body: testTempInRange }
+      )
+    )
+  );
+  await Promise.all(
+    Object.values(jsonResult).map(async eci =>
+      got(
+        `http://localhost:8080/sky/event/${eci}/5/wovyn/new_temperature_reading`,
+        { json: true, body: testTempThresholdViolation }
+      )
+    )
+  );
+  const temperatureResults = await Promise.all(
+    Object.values(jsonResult).map(async eci =>
+      got(
+        `http://localhost:8080/sky/cloud/${eci}/temperature_store/temperatures`
+      )
+    )
+  );
+  const jsonTemps = temperatureResults.map(r => {
+    return JSON.parse(r.body);
+  });
+
+  const tempPairs = jsonTemps.map(results => {
+    const thresholdTemp = results[results.length - 1].temperature;
+    const inRangeTemp = results[results.length - 2].temperature;
+    return [thresholdTemp, inRangeTemp];
+  });
+  const testResult = tempPairs.reduce((accum, curr) => {
+    const [thresholdTemp, inRangeTemp] = curr;
+    return (
+      accum &&
+      thresholdTemp === testTempThresholdViolation.temperature.temperatureF &&
+      inRangeTemp === testTempInRange.temperature.temperatureF
+    );
+  }, true);
+
+  ll(
+    "Testing: Sensor Picos Respond To Temp Events",
+    `Adding temp: ${testTempInRange.temperature.temperatureF}`,
+    `Adding temp: ${testTempThresholdViolation.temperature.temperatureF}`,
+    `${tempPairs
+      .map(pair => `Recieved temps: ${pair[0]}, ${pair[1]}`)
+      .join("\n")}`,
+    `Sensors Received And Stored Temps: ${testResult}`
+  );
+};
+
+const testSensorProfiles = async () => {
+  let result = await got(`${queryBaseURL}sensorsMap`);
+  const jsonResult = JSON.parse(result.body);
+  const sensorProfileResults = await Promise.all(
+    Object.values(jsonResult).map(async eci =>
+      got(`http://localhost:8080/sky/cloud/${eci}/sensor_profile/profile`)
+    )
+  );
+  const jsonSensorProfileResults = sensorProfileResults.map(r =>
+    JSON.parse(r.body)
+  );
+  const sensorProfile1 = jsonSensorProfileResults[0];
+  const sensorProfile2 = jsonSensorProfileResults[1];
+  const testResult =
+    sensorProfile1.name === "Sensor 2" &&
+    sensorProfile1.location === "some location" &&
+    sensorProfile1.number === "some number" &&
+    sensorProfile1.threshold === 72 &&
+    sensorProfile2.name === "Sensor 3" &&
+    sensorProfile2.location === "some location" &&
+    sensorProfile2.number === "some number" &&
+    sensorProfile2.threshold === 72;
+  ll(
+    "Testing: Sensor Picos Profiles Are Set Correctly",
+    sensorProfile1,
+    sensorProfile2,
+    `Sensors Received And Stored Temps: ${testResult}`
+  );
+};
+
 const driver = async () => {
   await createPicosTest();
   await deletePicoTest("Sensor 1");
+  await testNewTemperatureEvents();
+  await testSensorProfiles();
 };
 
 driver();
