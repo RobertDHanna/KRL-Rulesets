@@ -20,13 +20,15 @@ const createPicosTest = async () => {
   );
   await sleep(100);
   const result = await got(`${queryBaseURL}sensors`);
-  const sensorsCreated = Array.from(JSON.parse(result.body))
+  const sensorsCreated = Object.keys(JSON.parse(result.body))
     .map(name => picosToCreate.includes(name))
     .reduce((accum, curr) => accum && curr, true);
   ll(
     "Testing: Create Sensor Picos",
     `Creating picos: ${picosToCreate.join(", ")}`,
-    `Picos received from pico engine: ${JSON.parse(result.body).join(", ")}`,
+    `Picos received from pico engine: ${Object.keys(
+      JSON.parse(result.body)
+    ).join(", ")}`,
     `Test Passed: ${sensorsCreated}`
   );
 };
@@ -35,7 +37,7 @@ const deletePicoTest = async picoToDelete => {
   await got(`${eventBaseURL}unneeded_sensor?name=${picoToDelete}`);
   await sleep(100);
   const result = await got(`${queryBaseURL}sensors`);
-  const jsonResult = JSON.parse(result.body);
+  const jsonResult = Object.keys(JSON.parse(result.body));
   const picoWasDeleted = jsonResult.includes(picoToDelete) === false;
   ll(
     "Testing: Delete Sensor Pico",
@@ -54,7 +56,7 @@ const testNewTemperatureEvents = async () => {
     temperature: { temperatureF: 100.9 },
     timestamp: "Test Time Stamp"
   };
-  let result = await got(`${queryBaseURL}sensorsMap`);
+  let result = await got(`${queryBaseURL}sensors`);
   const jsonResult = JSON.parse(result.body);
   await Promise.all(
     Object.values(jsonResult).map(async eci =>
@@ -109,7 +111,7 @@ const testNewTemperatureEvents = async () => {
 };
 
 const testSensorProfiles = async () => {
-  let result = await got(`${queryBaseURL}sensorsMap`);
+  let result = await got(`${queryBaseURL}sensors`);
   const jsonResult = JSON.parse(result.body);
   const sensorProfileResults = await Promise.all(
     Object.values(jsonResult).map(async eci =>

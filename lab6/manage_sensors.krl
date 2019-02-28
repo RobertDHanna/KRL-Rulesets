@@ -5,7 +5,7 @@ ruleset manage_sensors {
   }
   global {
     sensors = function() {
-      ent:sensors.defaultsTo({}).keys()
+      ent:sensors.defaultsTo({})
     }
     sensorTemperatures = function() {
       sensor_names = ent:sensors.values();
@@ -17,6 +17,7 @@ ruleset manage_sensors {
         accum
       }, {})
     }
+    thresholdNumber = 72
   }
   rule create_new_sensor {
     select when sensor new_sensor
@@ -34,16 +35,17 @@ ruleset manage_sensors {
   rule store_new_sensor {
     select when wrangler child_initialized
     pre {
+      id = event:attr("id")
       eci = event:attr("eci")
       sensor_name = event:attr("rs_attrs"){"name"}
     }
     if sensor_name.klog("found sensor_name") then 
       event:send({ "eci": eci,
          "domain": "sensor", "type": "profile_updated",
-         "attrs" : {"name": sensor_name, "location": "some location", "number": "some number", "threshold": 12} })
+         "attrs" : {"name": sensor_name, "location": "some location", "number": "some number", "threshold": thresholdNumber} })
     fired {
       ent:sensors := ent:sensors.defaultsTo({});
-      ent:sensors{[sensor_name]} := eci
+      ent:sensors{[sensor_name]} := eci;
     }
   }
   rule forget_sensor {
@@ -56,7 +58,7 @@ ruleset manage_sensors {
     fired {
       raise wrangler event "child_deletion"
         attributes {"name": name};
-      clear ent:sensors{[name]}
+      clear ent:sensors{[name]};
     }
   }
 }
