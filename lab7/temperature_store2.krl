@@ -37,7 +37,17 @@ ruleset temperature_store {
         }
     }
     rule notify_manager_threshold_violation {
-      select when wovyn threshold_voliation
+      select when wovyn threshold_violation
+      pre {
+        sub =  Subscriptions:established("Tx_role", "sensor_manager").map(function(subscription) {
+          subscription
+        })[0];
+      }
+      if sub then event:send({ 
+          "eci": sub{"Tx"}, "eid": "none",
+          "domain": "manager", "type": "threshold_violation",
+          "attrs": {}
+      }, sub{"Tx_host"})
     }
     rule clear_temeratures {
         select when sensor reading_reset
