@@ -10,7 +10,7 @@ ruleset manage_sensors7 {
     }
     sensorTemperatures = function() {
       Subscriptions:established("Tx_role", "sensor").map(function(subscription) {
-        {"eci": subscription{"Tx"}, "temp": wrangler:skyQuery(subscription{"Tx"}, "temperature_store", "temperatures")}
+        {"eci": subscription{"Tx"}, "temp": wrangler:skyQuery(subscription{"Tx"}, "temperature_store", "temperatures", {}, subscription{"Tx_host"})}
       })
       .reduce(function(accum, currentVal) { 
         accum{[currentVal{"eci"}]} = currentVal{"temp"};
