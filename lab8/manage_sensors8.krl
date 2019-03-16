@@ -1,6 +1,6 @@
-ruleset manage_sensors7 {
+ruleset manage_sensors8 {
   meta {
-    shares sensors, sensorTemperatures
+    shares sensors, sensorTemperatures, reports
     use module io.picolabs.wrangler alias wrangler
     use module io.picolabs.subscription alias Subscriptions
   }
@@ -17,7 +17,50 @@ ruleset manage_sensors7 {
         accum
       }, {})
     }
+    reports = function() {
+      sensorReportsLength = ent:sensorReports.defaultsTo({}).values().length();
+      (sensorReportsLength > 5) => ent:sensorReports.values().splice(sensorReportsLength - 5, sensorReportsLength) | ent:sensorReports.values()
+    }
     thresholdNumber = 72
+  }
+  rule create_temperature_report {
+    select when sensor report
+    foreach Subscriptions:established("Tx_role","sensor") setting (subscription)
+      pre {
+        sensorReports = ent:sensorReports.defaultsTo({})
+        correlationID = ent:correlationID.defaultsTo(0)
+        sensorEci = subscription{"Tx"}
+      }
+      event:send({
+        "eci": sensorEci, 
+        "eid": "report",
+        "domain": "temperature", 
+        "type": "report",
+        "attrs": {
+          "eci": meta:eci,
+          "correlationID": correlationID,
+          "Rx": sensorEci
+        }
+      })
+      always {
+        ent:sensorReports{correlationID} := { 
+          "temperature_sensors": Subscriptions:established("Tx_role","sensor").length(),
+          "responding": 0, "temperatures": [] 
+        } on final;
+        ent:correlationID := correlationID + 1 on final
+      }
+  }
+  rule report_catcher {
+    select when sensor report_ready
+    pre {
+      correlationID = event:attrs{"correlationID"}
+      temperatures = event:attrs{"temperatures"}
+      currentResponders = ent:sensorReports{[correlationID, "responding"]}
+    }
+    always {
+      ent:sensorReports{[correlationID, "temperatures"]}.append(temperatures);
+      ent:sensorReports{[correlationID, "responding"]} := currentResponders + 1
+    }
   }
   rule create_new_sensor {
     select when sensor new_sensor

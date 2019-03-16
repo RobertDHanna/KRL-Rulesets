@@ -16,6 +16,24 @@ ruleset temperature_store {
           ent:temperatures.filter(function(el) {  not ent:threshold_violations.any(function(el2) {el{"timestamp"} == el2{"timestamp"}}) })
         }
     }
+    rule process_temperature_report {
+      select when temperature report
+      pre {
+        correlationID = event:attrs{"correlationID"}
+        requesterEci = event:attrs{"eci"}
+        temperatures = temperatures()
+      }
+      event:send({
+        "eci": requesterEci,
+        "eid": "report",
+        "domain": "sensor",
+        "type": "report_ready",
+        "attrs": {
+          "correlationID": correlationID,
+          "temperatures": temperatures
+        }
+      })
+    }
     rule collect_temperatures {
         select when wovyn new_temperature_reading
         pre {
