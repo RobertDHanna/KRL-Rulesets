@@ -1,6 +1,6 @@
 ruleset gossip_protocol {
   meta {
-    shares __testing
+    shares __testing, eciToPicoID
     use module io.picolabs.subscription alias Subscription
   }
   global {
@@ -14,16 +14,46 @@ ruleset gossip_protocol {
     }
     getPeer = function(state) {
       myPeers = state{"peers"};
-      peersThatNeedRumor = myPeers.filter(function(peer) {
-        not hasPeerHeardAllRumors(peer{"Tx"})
-      });
-      {}
+      peersThatNeedRumors = myPeers.filter(peerHasNotHeardAllRumors);
+      peersThatNeedMySeen = myPeers.filter(hasPeerSeenMyTemperatures);
+      needyPeers = peersThatNeedRumors.append(peersThatNeedMySeen);
+      (needyPeers.length() > 0) => needyPeers[random:integer(needyPeers.length() - 1)] | null
     }
-    hasPeerHeardAllRumors = function(id) {
-      
+    prepareMessage = function(peer) {
+      potentialMessages = peerHasNotHeardAllRumors(peer) => potentialMessages.append({"type": "rumor", "attrs": chooseRumorToSend(peer)}) | potentialMessages;
+      potentialMessages = hasPeerSeenMyTemperatures(peer) => potentialMessages.append({"type": "seen", "attrs": ent:seen}) | potentialMessages;
+      potentialMessages[random:integer(potentialMessages.length() - 1)]
     }
-    hasPeerSeenMyTemperatures = function(id) {
-      
+    chooseRumorToSend = function(peer) {
+      // choose a rumor to send
+     id = peer{"Id"};
+     messagesSeenByPeer = ent:seen{id};
+     chosenMessageID = ent:rumors.keys().filter(function(messageID) {
+       justID = messageID.split(":")[0];
+       sequenceNumber = messageID.split(":")[1];
+       not (messagesSeenByPeer >< justID && messagesSeenByPeer{justID} == sequenceNumber)
+     }).head();
+     ent:rumors{chosenMessageID};
+    }
+    peerHasNotHeardAllRumors = function(peer) {
+     id = peer{"Id"};
+     messagesSeenByPeer = ent:seen{id};
+     ent:rumors.keys().any(function(messageID) {
+       justID = messageID.split(":")[0];
+       sequenceNumber = messageID.split(":")[1];
+       not (messagesSeenByPeer >< justID && messagesSeenByPeer{justID} == sequenceNumber)
+     })
+    }
+    
+    hasPeerSeenMyTemperatures = function(peer) {
+      id = peer{"Id"};
+      messagesSeenByPeer = ent:seen{id};
+      messagesSeenByPeer >< meta:picoId && messagesSeenByPeer{meta:picoId} != ent:sequenceNumber
+    }
+    
+    getHighestSequenceNumberFromMessageID = function(messageID, startNumber) {
+      id = messageID.split(":")[0];
+      (ent:rumors >< id + ":" + startNumber) => getHighestSequenceNumberFromMessageID(messageID, startNumber + 1) | startNumber - 1
     }
   } 
   
@@ -34,10 +64,16 @@ ruleset gossip_protocol {
       peer = getPeer({
         "peers": Subscription:established("Tx_role", "node")
       })
+      message = prepareMessage(peer)
     }
-    fired {
-      
-    } finally {
+    if not message == null then event:send({
+      "eci": peer{"Tx"},
+      "eid": "none",
+      "domain": "gossip",
+      "type": message{"type"},
+      "attrs": message{"attrs"}
+    })
+    always {
       schedule gossip_protocol event "heartbeat" at time:add(time:now(), {"seconds": wait_duration})
     }
   }
@@ -47,7 +83,8 @@ ruleset gossip_protocol {
       messageID = event:attrs{"MessageID"}
     }
     always {
-      ent:rumors{messageID} := event:attrs
+      ent:rumors{messageID} := event:attrs;
+      ent:seen{messageID.split(":")[0]} := getHighestSequenceNumberFromMessageID(messageID, 0)
     }
   }
   rule gossip_seen {
@@ -60,28 +97,20 @@ ruleset gossip_protocol {
       ent:seen{picoID} := whatHasBeenSeen
     }
   }
-  rule process_picoID_notification {
-    select when gossip notify_picoID
+  rule process_new_temperature {
+    select when wovyn new_temperature_reading
     pre {
-      peerEci = event:attrs{"eci"}
-      peerPicoID = event:attrs{"picoID"}
+      messageID = meta:picoId + ":" + ent:sequenceNumber
     }
-  }
-  rule process_new_subscription {
-    select when wrangler subscription_added
-    foreach Subscription:established("Tx_role", "node") setting (peer)
-    pre {
-      messageAttrs = {
-        "eci": meta:eci,
-        "picoID": meta:picoId
-      }
+    always {
+      ent:seen{meta:picoId} := ent:sequence_number;
+      ent:rumors{messageID} := {
+        "MessageID": messageID,
+        "SensorID": meta:picoId,
+        "Temperature": attrs{"temperature"},
+        "Timestamp": attrs{"timestamp"}
+      };
+      ent:sequenceNumber := ent:sequenceNumber + 1
     }
-    event:send({
-      "eci": peer{"Tx"},
-      "edi": "none",
-      "domain": "gossip",
-      "type": "notify_picoID",
-      "attrs": messageAttrs
-    })
   }
 }
