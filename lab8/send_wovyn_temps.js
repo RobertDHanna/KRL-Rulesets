@@ -1,9 +1,5 @@
 const got = require("../lab6/node_modules/got/source");
-const sensorEcis = [
-  "RddvwhQMn34xw8D5EtoNnV",
-  "FXGMt9KxKEXNdKN2A4LmHG",
-  "7HbX1msy6DqBrqa3HCchUg"
-];
+const sensorEcis = ["JsRPGa8QtEGsHVjjL5QVnL"];
 
 const baseEventUrl = `http://localhost:8080/sky/event/`;
 
