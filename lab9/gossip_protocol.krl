@@ -21,16 +21,11 @@ ruleset gossip_protocol {
     getPeer = function(state) {
       myPeers = state{"peers"};
       peersThatNeedRumors = myPeers.filter(peerHasNotHeardAllRumors).klog("my peers: ");
-      // peersThatNeedMySeen = myPeers.filter(hasNotPeerSeenMyTemperatures);
-      // needyPeers = peersThatNeedRumors.append(peersThatNeedMySeen);
-      needyPeers = peersThatNeedRumors;
-      (needyPeers.length() > 0) => needyPeers[random:integer(needyPeers.length() - 1)] | null
+      (peersThatNeedRumors.length() > 0) => peersThatNeedRumors[random:integer(peersThatNeedRumors.length() - 1)] | null
     }
     prepareMessage = function(peer) {
       id = ent:eciToId{ peer{"Tx"} };
-      potentialMessages = [];
-      potentialMessages = peerHasNotHeardAllRumors(peer) => potentialMessages.append({"type": "rumor", "attrs": {"rumor": chooseRumorToSend(peer), "reply": meta:eci }}) | potentialMessages;
-      // potentialMessages = hasNotPeerSeenMyTemperatures(peer) => potentialMessages.append({"type": "seen", "attrs": {"picoID": meta:picoId, "seen": ent:seen{meta:picoId}}}) | potentialMessages;
+      potentialMessages = peerHasNotHeardAllRumors(peer) => potentialMessages.append({"type": "rumor", "attrs": {"rumor": chooseRumorToSend(peer), "reply": meta:eci }}) | [];
       potentialMessages[random:integer(potentialMessages.length() - 1)]
     }
     chooseRumorToSend = function(peer) {
@@ -45,13 +40,9 @@ ruleset gossip_protocol {
      ent:rumors{chosenMessageID};
     }
     peerHasNotHeardAllRumors = function(peer) {
-    // ent:eciToId.klog("peer ids: ");
      id =  ent:eciToId{ peer{"Tx"} };
     id.klog("THIS LADS ID: ");
      messagesSeenByPeer = ent:seen{id}.klog("messages seen by peer: ");
-    // ent:rumors.keys().filter(function(messageID) {
-    //   peer != null && id != messageID.split(":")[0]
-    // }).klog("rumors: ");
      ent:rumors.keys().filter(function(messageID) {
        peer != null && id != messageID.split(":")[0]
      }).any(function(messageID) {
@@ -59,15 +50,6 @@ ruleset gossip_protocol {
        sequenceNumber = messageID.split(":")[1].as("Number");
        not (messagesSeenByPeer >< justID && messagesSeenByPeer{justID} >= sequenceNumber)
      }).klog("rumors not heard: ")
-    }
-    
-    hasNotPeerSeenMyTemperatures = function(peer) {
-      id = ent:eciToId{ peer{"Tx"} };
-      // peer.klog("HAS SEEN BY ID: ");
-      messagesSeenByPeer = ent:seen{id};
-      messagesSeenByPeer.klog("messages seen by peer [SEEN]: ");
-      messagesSeenByPeer{meta:picoId}.klog("messages seen by peer my pico id");
-      peer != null && (not (messagesSeenByPeer >< meta:picoId && messagesSeenByPeer{meta:picoId} == ent:sequenceNumber - 1))
     }
     
     getHighestSequenceNumberFromMessageID = function(messageID, startNumber) {
@@ -79,14 +61,14 @@ ruleset gossip_protocol {
   rule gossip_heartbeat {
     select when gossip heartbeat
     pre {
-      wait_duration = ent:schedule_delay.defaultsTo(4);
+      wait_duration = ent:schedule_delay.defaultsTo(1);
       peer = getPeer({
         "peers": Subscription:established("Tx_role", "node")
       }).klog("my peer: ");
       message = prepareMessage(peer).klog("my message: ");
     }
     
-    if message != null then event:send({
+    if ent:on == true && message != null then event:send({
       "eci": peer{"Tx"},
       "eid": "none",
       "domain": "gossip",
@@ -94,10 +76,7 @@ ruleset gossip_protocol {
       "attrs": message{"attrs"}
     })
     
-    fired {
-      // message.klog("RUMOR: ");
-      // ent:seen := (message{"type"} == "rumor") => ent:seen.put(message{"attrs"}{"MessageID"}.split(":")[0], message{"attrs"}{"MessageID"}.split(":")[1]) | ent:seen
-    } finally {
+   always {
       schedule gossip event "heartbeat" at time:add(time:now(), {"seconds": wait_duration})
     }
   }
@@ -108,7 +87,7 @@ ruleset gossip_protocol {
       eci = event:attrs{"reply"}
     }
     // hey buddy, we have already seen that rumor.
-    if ent:rumors >< messageID then event:send({
+    if ent:on == true && ent:rumors >< messageID then event:send({
       "eci": eci,
       "eid": "none",
       "domain": "gossip",
@@ -119,9 +98,9 @@ ruleset gossip_protocol {
       }
     })
     always {
-      ent:rumors{messageID} := event:attrs{"rumor"};
+      ent:rumors{messageID} := (ent:on == true) => event:attrs{"rumor"} | ent:rumors{messageID};
       sequenceNumber = getHighestSequenceNumberFromMessageID(messageID, 0);
-      ent:seen{meta:picoId} := ent:seen{meta:picoId}.defaultsTo({}).put(messageID.split(":")[0], (sequenceNumber == -1) => 0 | sequenceNumber );
+      ent:seen{meta:picoId} := (ent:on == true) => ent:seen{meta:picoId}.defaultsTo({}).put(messageID.split(":")[0], (sequenceNumber == -1) => 0 | sequenceNumber ) | ent:seen{meta:picoId};
       // ent:seen.klog("AFTER RUMOR SEEN: ")
     }
   }
@@ -157,6 +136,7 @@ ruleset gossip_protocol {
       ent:rumors := {};
       ent:seen := {};
       ent:sequenceNumber := 0;
+      ent:on := true;
       raise gossip event "heartbeat"
         attributes event:attrs;
     }
@@ -181,6 +161,26 @@ ruleset gossip_protocol {
           "who": whoAmI
         }
       })
+  }
+  
+  rule clear_data {
+    select when sensor reading_reset
+    always {
+      ent:rumors := {};
+      ent:seen := {};
+      ent:sequenceNumber := 0;
+      ent:on := true;
+    }
+  }
+  
+  rule set_node_status {
+    select when gossip process
+    pre {
+      status = event:attrs{"status"}
+    }
+    always {
+      ent:on := (status == "on") => true | false;
+    }
   }
   
   rule process_new_temperature {
